@@ -18,6 +18,7 @@ struct Term_Freqs {
 };
 
 int hash(char* term);
+void append_term(Term_Freqs** ht, char* term);
 
 int main(int argc, char** argv)
 {
@@ -42,12 +43,18 @@ int main(int argc, char** argv)
     {
         if (entry->d_type == 0x08){
             printf("FOUND TEXT FILE %s\n", entry->d_name);
+            List ptrs = {0};
+            Lexemes terms = {0};
+
             char* s = strcat(dir_name, entry->d_name); 
             FILE *f = fopen(s, "rb");
             if (f == NULL) {
                 fprintf(stderr, "ERROR could not open file %s!\n", s);
             }
             
+            lex_file(&ptrs, &terms, f, (const char *)s);
+            
+            lfree_all(&ptrs);
             fclose(f);
         }
     }
@@ -67,3 +74,13 @@ int hash(char* term)
 }
 
 
+void append_term(Term_Freqs** ht, char* term)
+{
+    int key = hash(term);
+    if (ht[key] == NULL)
+    {
+        ht[key] = malloc(sizeof(Term_Freqs));
+        ht[key]->tf.freq = 1;
+        strcpy(ht[key]->tf.term, term);
+    }
+}
