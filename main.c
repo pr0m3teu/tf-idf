@@ -16,6 +16,7 @@ struct Term_Freq{
 int hash(char* term);
 void append_term(Term_Freq** ht, char* term);
 void print_ht(Term_Freq** ht);
+void free_ht(Term_Freq** ht);
 
 int main(int argc, char** argv)
 {
@@ -68,7 +69,6 @@ int main(int argc, char** argv)
                 char *p = strtok(buff, SPECIAL_CHARS);
                 while (p != NULL)
                 {
-                    printf("%s\n", p);
                     append_term(ht, p);
                     p = strtok(NULL, SPECIAL_CHARS);
                 }
@@ -80,10 +80,13 @@ int main(int argc, char** argv)
                 }
             }
             
+            fclose(f);
+            
             free(buff);
             free(s);
-            fclose(f);
+
             print_ht(ht);
+            free_ht(ht);
         }
     }
 
@@ -114,11 +117,6 @@ void append_term(Term_Freq** ht, char* term)
     }
     else {
         Term_Freq *curr = ht[key]; 
-        if (strcmp(curr->term, term) == 0) {
-            curr->freq++;
-            return;
-        }
-
         while(curr->next != NULL)
         {
             if (strcmp(curr->term, term) == 0) {
@@ -128,11 +126,37 @@ void append_term(Term_Freq** ht, char* term)
             curr = curr->next;
 
         }
+        if (strcmp(curr->term, term) == 0) {
+            curr->freq++;
+            return;
+        }
+
         curr->next = malloc(sizeof(Term_Freq));
         curr->next->freq = 1;
         curr->next->term = malloc(sizeof(char) * strlen(term));
         strcpy(curr->next->term, term);
         curr->next->next = NULL;
+    }
+}
+
+void free_ht(Term_Freq** ht)
+{
+    for (int i = 0; i < M; ++i)
+    {
+        if(ht[i] != NULL)
+        {
+            Term_Freq *t, *curr;
+            curr = ht[i];
+            while(curr->next != NULL)
+            {
+                t = curr;
+                curr = curr->next;
+                free(t->term);
+                free(t);
+            }
+            free(curr->term);
+            free(curr);
+        }
     }
 }
 
