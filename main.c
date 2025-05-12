@@ -2,11 +2,8 @@
 #include <stdlib.h>
 #include <dirent.h>
 #include <string.h>
-#include "lexer.h"
-#define LALLOCS_IMPLEMENTATION
-#include "lallocs.h"
 
-#define M 101
+#define M 150
 #define SPECIAL_CHARS " \n\t\b,.*&#!()[]{}<>~@$%^_+;-.=?\\:\"'"
 
 typedef struct Term_Freq Term_Freq;
@@ -42,7 +39,7 @@ int main(int argc, char** argv)
     while((entry = readdir(dr)) != NULL)
     {
         if (entry->d_type == 0x08) {
-            Term_Freq* ht[M];
+            Term_Freq* ht[M] = {0};
     
             char* s = malloc(sizeof(char) * (strlen(dir_name) + strlen(entry->d_name))); 
             strcpy(s, dir_name);
