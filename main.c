@@ -3,22 +3,22 @@
 #include <dirent.h>
 #include <string.h>
 #include "lexer.h"
+#define LALLOCS_IMPLEMENTATION
+#include "lallocs.h"
 
-#define M 50
+#define M 101
+#define SPECIAL_CHARS " \n\t\b,.*&#!()[]{}<>~@$%^_+;-.=?\\:\"'"
 
-typedef struct { 
+typedef struct Term_Freq Term_Freq;
+struct Term_Freq{ 
     size_t freq;
     char* term;
-} Term_Freq;
-
-typedef struct Term_Freqs Term_Freqs;
-struct Term_Freqs {
-   Term_Freq tf;
-   Term_Freqs *next;
-};
+   Term_Freq *next;
+}; 
 
 int hash(char* term);
-void append_term(Term_Freqs** ht, char* term);
+void append_term(Term_Freq** ht, char* term);
+void print_ht(Term_Freq** ht);
 
 int main(int argc, char** argv)
 {
@@ -41,21 +41,52 @@ int main(int argc, char** argv)
     
     while((entry = readdir(dr)) != NULL)
     {
-        if (entry->d_type == 0x08){
-            printf("FOUND TEXT FILE %s\n", entry->d_name);
-            List ptrs = {0};
-            Lexemes terms = {0};
-
-            char* s = strcat(dir_name, entry->d_name); 
+        if (entry->d_type == 0x08) {
+            Term_Freq* ht[M];
+    
+            char* s = malloc(sizeof(char) * (strlen(dir_name) + strlen(entry->d_name))); 
+            strcpy(s, dir_name);
+            strncat(s, entry->d_name, strlen(entry->d_name));
+            
             FILE *f = fopen(s, "rb");
             if (f == NULL) {
                 fprintf(stderr, "ERROR could not open file %s!\n", s);
+                exit(1);
+            }
+        
+            // Find file size
+            fseek(f, 0L, SEEK_END);
+            long f_size = ftell(f);
+            fseek(f, 0L, SEEK_SET);
+
+            char *buff = malloc(sizeof(char) * f_size);
+
+            if (buff == NULL) {
+                fprintf(stderr, "ERROR: Could not allocate memory for buffer!\n");
+                exit(1);
+            }
+
+            while(fgets(buff, f_size, f))
+            {
+                char *p = strtok(buff, SPECIAL_CHARS);
+                while (p != NULL)
+                {
+                    printf("%s\n", p);
+                    append_term(ht, p);
+                    p = strtok(NULL, SPECIAL_CHARS);
+                }
+            }
+            for(int i = 0; i < M; ++i)
+            {
+                if(ht[i] != NULL) {
+                    printf("YES\n");
+                }
             }
             
-            lex_file(&ptrs, &terms, f, (const char *)s);
-            
-            lfree_all(&ptrs);
+            free(buff);
+            free(s);
             fclose(f);
+            print_ht(ht);
         }
     }
 
@@ -70,17 +101,55 @@ int hash(char* term)
     {
         sum += term[i];
     }
-    return sum;
+    return sum % M;
 }
 
 
-void append_term(Term_Freqs** ht, char* term)
+void append_term(Term_Freq** ht, char* term)
 {
     int key = hash(term);
-    if (ht[key] == NULL)
+    if (ht[key] == NULL) {
+        ht[key] = malloc(sizeof(Term_Freq));
+        ht[key]->freq = 1;
+        ht[key]->term = malloc(sizeof(char) * strlen(term));
+        strcpy(ht[key]->term, term);
+        ht[key]->next = NULL;
+    }
+    else {
+        Term_Freq *curr = ht[key]; 
+        if (strcmp(curr->term, term) == 0) {
+            curr->freq++;
+            return;
+        }
+
+        while(curr->next != NULL)
+        {
+            if (strcmp(curr->term, term) == 0) {
+                curr->freq++;
+                return;
+            }
+            curr = curr->next;
+
+        }
+        curr->next = malloc(sizeof(Term_Freq));
+        curr->next->freq = 1;
+        curr->next->term = malloc(sizeof(char) * strlen(term));
+        strcpy(curr->next->term, term);
+        curr->next->next = NULL;
+    }
+}
+
+void print_ht(Term_Freq** ht)
+{
+    for(int i = 0; i < M; ++i)
     {
-        ht[key] = malloc(sizeof(Term_Freqs));
-        ht[key]->tf.freq = 1;
-        strcpy(ht[key]->tf.term, term);
+        printf("%d: ", i);
+        Term_Freq *curr = ht[i];
+        while(curr != NULL)
+        {
+            printf("%s:%zu, ", curr->term, curr->freq);
+            curr = curr->next;
+        }
+        printf("\n");
     }
 }
