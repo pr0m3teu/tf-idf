@@ -2,21 +2,32 @@
 #include <stdlib.h>
 #include <dirent.h>
 #include <string.h>
+#include <ctype.h>
 
-#define M 150
+#define M 250 
 #define SPECIAL_CHARS " \n\t\b,.*&#!()[]{}<>~@$%^_+;-.=?\\:\"'"
 
-typedef struct Term_Freq Term_Freq;
-struct Term_Freq{ 
+typedef struct Term_Freq_List Term_Freq_List;
+struct Term_Freq_List { 
     size_t freq;
     char* term;
-   Term_Freq *next;
+    Term_Freq_List *next;
 }; 
 
+typedef struct {
+    size_t freq;
+    char* term;
+} Term_Freq;
+
+typedef struct {
+    char*            doc_name;
+    Term_Freq_List*  term_freqs[M];
+} Doc;
+
 int hash(char* term);
-void append_term(Term_Freq** ht, char* term);
-void print_ht(Term_Freq** ht);
-void free_ht(Term_Freq** ht);
+void append_term(Term_Freq_List** ht, char* term);
+void print_ht(Term_Freq_List** ht);
+void free_ht(Term_Freq_List** ht);
 
 int main(int argc, char** argv)
 {
@@ -40,15 +51,22 @@ int main(int argc, char** argv)
     while((entry = readdir(dr)) != NULL)
     {
         if (entry->d_type == 0x08) {
-            Term_Freq* ht[M] = {0};
-    
-            char* s = malloc(sizeof(char) * (strlen(dir_name) + strlen(entry->d_name))); 
-            strcpy(s, dir_name);
-            strncat(s, entry->d_name, strlen(entry->d_name));
+            Doc document = {0}; 
+            char* doc_name = malloc(sizeof(char) * (strlen(dir_name) + strlen(entry->d_name) + 1)); 
+            if (doc_name == NULL)
+            {
+                fprintf(stderr, "ERROR: Could not allocate memory!\n");
+                exit(1);
+            }
+
+            strcpy(doc_name, dir_name);
+            strncat(doc_name, entry->d_name, strlen(entry->d_name));
             
-            FILE *f = fopen(s, "rb");
+            document.doc_name = doc_name;
+
+            FILE *f = fopen(doc_name, "rb");
             if (f == NULL) {
-                fprintf(stderr, "ERROR could not open file %s!\n", s);
+                fprintf(stderr, "ERROR could not open file %s!\n", doc_name);
                 exit(1);
             }
         
@@ -58,7 +76,6 @@ int main(int argc, char** argv)
             fseek(f, 0L, SEEK_SET);
 
             char *buff = malloc(sizeof(char) * f_size);
-
             if (buff == NULL) {
                 fprintf(stderr, "ERROR: Could not allocate memory for buffer!\n");
                 exit(1);
@@ -66,27 +83,24 @@ int main(int argc, char** argv)
 
             while(fgets(buff, f_size, f))
             {
-                char *p = strtok(buff, SPECIAL_CHARS);
-                while (p != NULL)
+                char *word = strtok(buff, SPECIAL_CHARS);
+                while (word != NULL)
                 {
-                    append_term(ht, p);
-                    p = strtok(NULL, SPECIAL_CHARS);
-                }
-            }
-            for(int i = 0; i < M; ++i)
-            {
-                if(ht[i] != NULL) {
-                    printf("YES\n");
+                    char *t = word;
+                    for(; *t; ++t) *t = tolower(*t);
+
+                    append_term(document.term_freqs, word);
+                    word = strtok(NULL, SPECIAL_CHARS);
                 }
             }
             
             fclose(f);
             
             free(buff);
-            free(s);
 
-            print_ht(ht);
-            free_ht(ht);
+            print_ht(document.term_freqs);
+            free_ht(document.term_freqs);
+            free(document.doc_name);
         }
     }
 
@@ -105,18 +119,18 @@ int hash(char* term)
 }
 
 
-void append_term(Term_Freq** ht, char* term)
+void append_term(Term_Freq_List** ht, char* term)
 {
     int key = hash(term);
     if (ht[key] == NULL) {
-        ht[key] = malloc(sizeof(Term_Freq));
+        ht[key] = malloc(sizeof(Term_Freq_List));
         ht[key]->freq = 1;
         ht[key]->term = malloc(sizeof(char) * strlen(term));
         strcpy(ht[key]->term, term);
         ht[key]->next = NULL;
     }
     else {
-        Term_Freq *curr = ht[key]; 
+        Term_Freq_List *curr = ht[key]; 
         while(curr->next != NULL)
         {
             if (strcmp(curr->term, term) == 0) {
@@ -131,7 +145,7 @@ void append_term(Term_Freq** ht, char* term)
             return;
         }
 
-        curr->next = malloc(sizeof(Term_Freq));
+        curr->next = malloc(sizeof(Term_Freq_List));
         curr->next->freq = 1;
         curr->next->term = malloc(sizeof(char) * strlen(term));
         strcpy(curr->next->term, term);
@@ -139,13 +153,13 @@ void append_term(Term_Freq** ht, char* term)
     }
 }
 
-void free_ht(Term_Freq** ht)
+void free_ht(Term_Freq_List** ht)
 {
     for (int i = 0; i < M; ++i)
     {
         if(ht[i] != NULL)
         {
-            Term_Freq *t, *curr;
+            Term_Freq_List *t, *curr;
             curr = ht[i];
             while(curr->next != NULL)
             {
@@ -160,12 +174,12 @@ void free_ht(Term_Freq** ht)
     }
 }
 
-void print_ht(Term_Freq** ht)
+void print_ht(Term_Freq_List** ht)
 {
     for(int i = 0; i < M; ++i)
     {
-        printf("%d: ", i);
-        Term_Freq *curr = ht[i];
+        printf("Entry %d:\n", i);
+        Term_Freq_List *curr = ht[i];
         while(curr != NULL)
         {
             printf("%s:%zu, ", curr->term, curr->freq);
