@@ -121,16 +121,17 @@ int hash(char* term)
 
 void append_term(Term_Freq_List** ht, char* term)
 {
-    int key = hash(term);
-    if (ht[key] == NULL) {
-        ht[key] = malloc(sizeof(Term_Freq_List));
-        ht[key]->freq = 1;
-        ht[key]->term = malloc(sizeof(char) * strlen(term));
-        strcpy(ht[key]->term, term);
-        ht[key]->next = NULL;
+    const int key = hash(term);
+    Term_Freq_List *curr = ht[key]; 
+    if (curr == NULL) {
+        curr = malloc(sizeof(Term_Freq_List));
+        curr->freq = 1;
+        curr->term = malloc(sizeof(char) * strlen(term));
+        strcpy(curr->term, term);
+        curr->next = NULL;
+        ht[key] = curr;
     }
     else {
-        Term_Freq_List *curr = ht[key]; 
         while(curr->next != NULL)
         {
             if (strcmp(curr->term, term) == 0) {
