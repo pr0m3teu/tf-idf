@@ -21,13 +21,15 @@ typedef struct {
 
 typedef struct {
     char*            doc_name;
-    Term_Freq_List*  term_freqs[M];
+    Term_Freq_List**  term_freqs;
 } Doc;
 
 int hash(char* term);
 void append_term(Term_Freq_List** ht, char* term);
 void print_ht(Term_Freq_List** ht);
 void free_ht(Term_Freq_List** ht);
+
+void free_doc(Doc* doc);
 
 int main(int argc, char** argv)
 {
@@ -39,7 +41,7 @@ int main(int argc, char** argv)
     }
 
     struct dirent* entry;
-    char* dir_name = argv[1];
+    const char* dir_name = argv[1];
     DIR* dr = opendir(dir_name);
 
     if (dr == NULL)
@@ -51,7 +53,8 @@ int main(int argc, char** argv)
     while((entry = readdir(dr)) != NULL)
     {
         if (entry->d_type == 0x08) {
-            Doc document = {0}; 
+            Doc *doc = malloc(sizeof(Doc)); 
+            doc->term_freqs = malloc(sizeof(Term_Freq_List) * M);
             char* doc_name = malloc(sizeof(char) * (strlen(dir_name) + strlen(entry->d_name) + 1)); 
             if (doc_name == NULL)
             {
@@ -62,17 +65,18 @@ int main(int argc, char** argv)
             strcpy(doc_name, dir_name);
             strncat(doc_name, entry->d_name, strlen(entry->d_name));
             
-            document.doc_name = doc_name;
+            doc->doc_name = doc_name;
 
             FILE *f = fopen(doc_name, "rb");
             if (f == NULL) {
                 fprintf(stderr, "ERROR could not open file %s!\n", doc_name);
+                doc->term_freqs = malloc(sizeof(Term_Freq_List) * M);
                 exit(1);
             }
         
             // Find file size
             fseek(f, 0L, SEEK_END);
-            long f_size = ftell(f);
+            const long f_size = ftell(f);
             fseek(f, 0L, SEEK_SET);
 
             char *buff = malloc(sizeof(char) * f_size);
@@ -89,7 +93,7 @@ int main(int argc, char** argv)
                     char *t = word;
                     for(; *t; ++t) *t = tolower(*t);
 
-                    append_term(document.term_freqs, word);
+                    append_term(doc->term_freqs, word);
                     word = strtok(NULL, SPECIAL_CHARS);
                 }
             }
@@ -97,10 +101,11 @@ int main(int argc, char** argv)
             fclose(f);
             
             free(buff);
+            buff = NULL;
 
-            print_ht(document.term_freqs);
-            free_ht(document.term_freqs);
-            free(document.doc_name);
+            print_ht(doc->term_freqs);
+            free_doc(doc);
+            
         }
     }
 
@@ -167,10 +172,13 @@ void free_ht(Term_Freq_List** ht)
                 t = curr;
                 curr = curr->next;
                 free(t->term);
+                t->term = NULL;
                 free(t);
             }
             free(curr->term);
+            curr->term = NULL;
             free(curr);
+            curr = NULL;
         }
     }
 }
@@ -188,4 +196,14 @@ void print_ht(Term_Freq_List** ht)
         }
         printf("\n");
     }
+}
+
+void free_doc(Doc* doc)
+{
+    free_ht(doc->term_freqs);
+    free(doc->term_freqs);
+    doc->term_freqs = NULL;
+    free(doc->doc_name);
+    doc->doc_name = NULL;
+    free(doc);
 }
