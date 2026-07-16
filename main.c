@@ -15,16 +15,13 @@ struct Term_Freq_List {
     Term_Freq_List *next;
 }; 
 
-typedef struct {
-    size_t freq;
-    char* term;
-} Term_Freq;
 
 typedef struct {
     size_t            terms_count;
     char*             doc_name;
     Term_Freq_List**  term_freqs;
 } Doc;
+
 
 int hash(const char* term);
 void append_term(Term_Freq_List** ht, char* term);
