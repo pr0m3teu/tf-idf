@@ -1,4 +1,4 @@
-CC = clang
+CC = gcc 
 CFLAGS = -Wall -Wextra -std=c11
 
 main: main.c 
