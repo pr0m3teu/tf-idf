@@ -5,7 +5,7 @@
 #include <string.h>
 #include <ctype.h>
 
-#define M 10 
+#define M 50
 #define SPECIAL_CHARS " \r\n\t\b,.*&#!()[]{}<>~@$%^_+;-.=?\\:\"'"
 
 typedef struct Term_Freq_List Term_Freq_List;
@@ -26,12 +26,17 @@ typedef struct {
     Term_Freq_List**  term_freqs;
 } Doc;
 
-int hash(char* term);
+int hash(const char* term);
 void append_term(Term_Freq_List** ht, char* term);
 void print_ht(Term_Freq_List** ht);
 void free_ht(Term_Freq_List** ht);
-bool search_ht(Term_Freq_List** ht, char* item);
+
+bool search_ht(Term_Freq_List** ht, const char* item);
+int get_freq(Term_Freq_List** ht, const char* term);
+
 void free_doc(Doc* doc);
+int tf(Doc doc, const char* term);
+double idf(Doc **docs_list, int docs_count, const char* term);
 
 static Doc* docs[M];
 static size_t docs_len = 0;
@@ -41,7 +46,7 @@ int main(int argc, char** argv)
     if (argc < 2)
     {
         fprintf(stderr, "ERROR: No Folder provided!\n");
-        fprintf(stderr, "USAGE: ./main [FOLDER]\n");
+        fprintf(stderr, "USAGE: ./main <FOLDER>\n");
         exit(1);
     }
 
@@ -120,7 +125,7 @@ int main(int argc, char** argv)
             docs[docs_len++] = doc; 
             for(size_t i = 0; i < docs_len; ++i) 
             {   
-                printf("docs[i]->doc_name %s, terms_count %ld\n" , docs[i]->doc_name, docs[i]->terms_count);
+                printf("docs[%ld]->doc_name %s, terms_count %ld\n", i, docs[i]->doc_name, docs[i]->terms_count);
             }
 
         }
@@ -131,7 +136,7 @@ int main(int argc, char** argv)
     return 0;
 }
 
-int hash(char* term)
+int hash(const char* term)
 {
     int sum = 0; 
     for (size_t i = 0; i < strlen(term); ++i)
@@ -216,6 +221,7 @@ void print_ht(Term_Freq_List** ht)
     }
 }
 
+
 void free_doc(Doc* doc)
 {
     free_ht(doc->term_freqs);
@@ -226,7 +232,8 @@ void free_doc(Doc* doc)
     free(doc);
 }
 
-bool search_ht(Term_Freq_List** ht, char* item)
+
+bool search_ht(Term_Freq_List** ht, const char* item)
 {
     int key = hash(item);
     Term_Freq_List* entry= ht[key];
@@ -239,4 +246,41 @@ bool search_ht(Term_Freq_List** ht, char* item)
         entry = entry->next;
     }
     return false;
+}
+
+
+int get_freq(Term_Freq_List** ht, const char* term)
+{
+    const int key = hash(term);
+    Term_Freq_List *curr = ht[key];
+
+    if (curr == NULL) return -1;
+
+    do {
+        if (strcmp(curr->term, term) == 0) return curr->freq;
+        curr = curr->next;
+    } while (curr->next != NULL);
+
+    return -1;
+}
+
+    
+int tf(Doc doc, const char* term)
+{
+    int freq = get_freq(doc.term_freqs, term);
+    return freq;
+}
+
+
+double idf(Doc **docs_list, int docs_count, const char* term)
+{
+   if (docs_count < 0) return -1;
+
+   int nt = 0; 
+   for (int i = 0; i < docs_count; ++i)
+   {
+        if (search_ht(docs_list[i]->term_freqs, term)) nt += 1;
+   }
+
+   return (double)(docs_count + 1) / (nt + 1);
 }
