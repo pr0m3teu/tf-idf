@@ -35,8 +35,7 @@ void free_doc(Doc* doc);
 int tf(Doc doc, const char* term);
 double idf(Doc **docs_list, int docs_count, const char* term);
 
-static Doc* docs[M];
-static size_t docs_len = 0;
+int index_documents(DIR *dr, Doc** docs, const char* dir_name);
 
 int main(int argc, char** argv)
 {
@@ -47,7 +46,6 @@ int main(int argc, char** argv)
         exit(1);
     }
 
-    struct dirent* entry;
     const char* dir_name = argv[1];
     DIR* dr = opendir(dir_name);
 
@@ -56,78 +54,10 @@ int main(int argc, char** argv)
         fprintf(stderr, "ERROR: could not open folder!\n");
         exit(1);
     }
+
+    Doc* docs[M];
+    size_t docs_len = index_documents(dr, docs, dir_name);
     
-    while((entry = readdir(dr)) != NULL)
-    {
-        if (entry->d_type == 0x08) {
-            printf("entry: %s\n", entry->d_name);
-            Doc *doc = malloc(sizeof(Doc)); 
-            doc->term_freqs = malloc(sizeof(Term_Freq_List*) * M);
-            for (int i = 0; i < M; ++i)
-            {
-                doc->term_freqs[i] = NULL;
-            }
-            doc->terms_count = 0;
-            char* doc_name = malloc(sizeof(char) * (strlen(dir_name) + strlen(entry->d_name) + 2)); 
-            if (doc_name == NULL)
-            {
-                fprintf(stderr, "ERROR: Could not allocate memory!\n");
-                exit(1);
-            }
-
-            strcpy(doc_name, dir_name);
-            strcat(doc_name, "/");
-            strncat(doc_name, entry->d_name, strlen(entry->d_name));
-            
-            doc->doc_name = doc_name;
-
-            FILE *f = fopen(doc_name, "rb");
-            if (f == NULL) {
-                fprintf(stderr, "ERROR could not open file %s!\n", doc_name);
-                doc->term_freqs = malloc(sizeof(Term_Freq_List) * M);
-                exit(1);
-            }
-        
-            // Find file size
-            fseek(f, 0L, SEEK_END);
-            const long f_size = ftell(f);
-            fseek(f, 0L, SEEK_SET);
-
-            char *buff = malloc(sizeof(char) * (f_size + 1));
-            if (buff == NULL) {
-                fprintf(stderr, "ERROR: Could not allocate memory for buffer!\n");
-                exit(1);
-            }
-            
-            while(fgets(buff, f_size, f))
-            {
-                char *word = strtok(buff, SPECIAL_CHARS);
-                while (word != NULL)
-                {
-                    char *t = word;
-                    for(; *t; ++t) *t = tolower(*t);
-
-                    append_term(doc->term_freqs, word);
-                    doc->terms_count++;
-                    word = strtok(NULL, SPECIAL_CHARS);
-                }
-            }
-            
-            fclose(f);
-            
-            free(buff);
-            buff = NULL;
-
-            print_ht(doc->term_freqs);
-            docs[docs_len++] = doc; 
-            for(size_t i = 0; i < docs_len; ++i) 
-            {   
-                printf("docs[%ld]->doc_name %s, terms_count %ld\n", i, docs[i]->doc_name, docs[i]->terms_count);
-            }
-
-        }
-    }
-
     closedir(dr);
     for (size_t i = 0; i < docs_len; ++i) free_doc(docs[i]);
     return 0;
@@ -138,7 +68,7 @@ int hash(const char* term)
     int sum = 0; 
     for (size_t i = 0; i < strlen(term); ++i)
     {
-        sum += term[i];
+        sum += (unsigned char) term[i];
     }
     return sum % M;
 }
@@ -256,7 +186,7 @@ int get_freq(Term_Freq_List** ht, const char* term)
     do {
         if (strcmp(curr->term, term) == 0) return curr->freq;
         curr = curr->next;
-    } while (curr->next != NULL);
+    } while (curr != NULL);
 
     return -1;
 }
@@ -280,4 +210,84 @@ double idf(Doc **docs_list, int docs_count, const char* term)
    }
 
    return (double)(docs_count + 1) / (nt + 1);
+}
+
+int index_documents(DIR *dr, Doc** docs, const char* dir_name)
+{   
+    struct dirent* entry;
+    size_t docs_len = 0;
+    while((entry = readdir(dr)) != NULL)
+    {
+        if (entry->d_type == 0x08) {
+            printf("entry: %s\n", entry->d_name);
+
+            Doc *doc = malloc(sizeof(Doc)); 
+            doc->term_freqs = malloc(sizeof(Term_Freq_List*) * M);
+            for (int i = 0; i < M; ++i)
+            {
+                doc->term_freqs[i] = NULL;
+            }
+            doc->terms_count = 0;
+            char* doc_name = malloc(sizeof(char) * (strlen(dir_name) + strlen(entry->d_name) + 2)); 
+            if (doc_name == NULL)
+            {
+                fprintf(stderr, "ERROR: Could not allocate memory!\n");
+                exit(1);
+            }
+
+            strcpy(doc_name, dir_name);
+            strcat(doc_name, "/");
+            strncat(doc_name, entry->d_name, strlen(entry->d_name));
+            
+            doc->doc_name = doc_name;
+            printf("INFO: Successfully initialized doc: %s\n", doc->doc_name);
+
+            FILE *f = fopen(doc_name, "rb");
+            if (f == NULL) {
+                fprintf(stderr, "ERROR could not open file %s!\n", doc_name);
+                exit(1);
+            }
+        
+            // Find file size
+            fseek(f, 0L, SEEK_END);
+            const long f_size = ftell(f);
+            fseek(f, 0L, SEEK_SET);
+
+            char *buff = malloc(sizeof(char) * (f_size + 1));
+            if (buff == NULL) {
+                fprintf(stderr, "ERROR: Could not allocate memory for buffer!\n");
+                exit(1);
+            }
+            
+
+            printf("INFO: Successfully opened file: %s\n", doc->doc_name);
+            while(fgets(buff, f_size, f))
+            {
+                char *word = strtok(buff, SPECIAL_CHARS);
+                while (word != NULL)
+                {
+                    char *t = word;
+                    for(; *t; ++t) *t = tolower(*t);
+
+                    append_term(doc->term_freqs, word);
+                    doc->terms_count++;
+                    word = strtok(NULL, SPECIAL_CHARS);
+                }
+            }
+            
+            fclose(f);
+            
+            free(buff);
+            buff = NULL;
+
+            docs[docs_len++] = doc; 
+            for(size_t i = 0; i < docs_len; ++i) 
+            {   
+                printf("docs[%ld]->doc_name %s, terms_count %ld\n", i, docs[i]->doc_name, docs[i]->terms_count);
+                print_ht(docs[i]->term_freqs);
+            }
+
+        }
+    }
+    return docs_len;
 }
