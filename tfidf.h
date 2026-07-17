@@ -42,7 +42,8 @@ int get_freq(Term_Freq_List** ht, const char* term);
 
 void free_doc(Doc* doc);
 int tf(Doc doc, const char* term);
-double idf(Doc *docs_list, int docs_count, const char* term);
+double idf(da* docs, const char* term);
+double tf_idf(da* docs, Doc doc, const char* term);
 
 int index_documents(DIR *dr, da* docs, const char* dir_name);
 

@@ -171,17 +171,20 @@ int tf(Doc doc, const char* term)
 }
 
 
-double idf(Doc *docs_list, int docs_count, const char* term)
+double idf(da* docs, const char* term)
 {
-   if (docs_count < 0) return -1;
-
    int nt = 0; 
-   for (int i = 0; i < docs_count; ++i)
+   for (size_t i = 0; i < docs->size; ++i)
    {
-        if (search_ht(docs_list[i].term_freqs, term)) nt += 1;
+        if (search_ht(docs->items[i]->term_freqs, term)) nt += 1;
    }
 
-   return (double)(docs_count + 1) / (nt + 1);
+   return (double)(docs->size + 1) / (nt + 1);
+}
+
+double tf_idf(da* docs, Doc doc, const char* term)
+{
+    return tf(doc, term) * idf(docs, term);
 }
 
 int index_documents(DIR *dr, da* docs, const char* dir_name)
@@ -192,7 +195,7 @@ int index_documents(DIR *dr, da* docs, const char* dir_name)
     while((entry = readdir(dr)) != NULL)
     {
         if (entry->d_type == DT_REG) {
-            printf("\nDoc Entry: %s\n", entry->d_name);
+            //printf("\nDoc Entry: %s\n", entry->d_name);
 
             Doc *doc = malloc(sizeof(Doc)); 
             doc->term_freqs = malloc(sizeof(Term_Freq_List*) * M);
@@ -205,7 +208,7 @@ int index_documents(DIR *dr, da* docs, const char* dir_name)
             if (doc_name == NULL)
             {
                 fprintf(stderr, "ERROR: Could not allocate memory!\n");
-                exit(1);
+                return -1;
             }
 
             strcpy(doc_name, dir_name);
@@ -213,12 +216,12 @@ int index_documents(DIR *dr, da* docs, const char* dir_name)
             strncat(doc_name, entry->d_name, strlen(entry->d_name));
             
             doc->doc_name = doc_name;
-            printf("[INFO]: Successfully initialized doc: %s\n", doc->doc_name);
+            //printf("[INFO]: Successfully initialized doc: %s\n", doc->doc_name);
 
             FILE *f = fopen(doc_name, "rb");
             if (f == NULL) {
                 fprintf(stderr, "ERROR could not open file %s!\n", doc_name);
-                exit(1);
+                return -1;
             }
         
             // Find file size
@@ -229,11 +232,11 @@ int index_documents(DIR *dr, da* docs, const char* dir_name)
             char *buff = malloc(sizeof(char) * (f_size + 1));
             if (buff == NULL) {
                 fprintf(stderr, "ERROR: Could not allocate memory for buffer!\n");
-                exit(1);
+                return -1;
             }
             
 
-            printf("[INFO]: Successfully opened file: %s\n", doc->doc_name);
+            //printf("[INFO]: Successfully opened file: %s\n", doc->doc_name);
             while(fgets(buff, f_size, f))
             {
                 char *word = strtok(buff, SPECIAL_CHARS);
@@ -249,21 +252,15 @@ int index_documents(DIR *dr, da* docs, const char* dir_name)
             }
             
             fclose(f);
-            printf("[INFO]: Parsed file\n"); 
+            //printf("[INFO]: Parsed file\n"); 
             free(buff);
             buff = NULL;
 
             da_append(docs, doc);
             docs_len++;
-            printf("[INFO]: Added file: %s to docs list \n", doc->doc_name); 
+            //printf("[INFO]: Added file: %s to docs list \n", doc->doc_name); 
 
         }
-    }
-
-    for(size_t i = 0; i < docs_len; ++i) 
-    {   
-        printf("docs[%ld]->doc_name %s, terms_count %ld\n", i, docs->items[i]->doc_name, docs->items[i]->terms_count);
-        print_ht(docs->items[i]->term_freqs);
     }
     return docs_len;
 }
