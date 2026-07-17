@@ -1,5 +1,5 @@
 CC = gcc 
-CFLAGS = -Wall -Wextra -std=c11 -ggdb
+CFLAGS = -Wall -Wextra -ggdb
 
 main: main.c 
 	$(CC) -o main $(CFLAGS) main.c

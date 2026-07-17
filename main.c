@@ -22,7 +22,37 @@ typedef struct {
     Term_Freq_List**  term_freqs;
 } Doc;
 
+// ------------------------- DA
+typedef struct {
+    size_t size;
+    size_t capacity;
+    Doc** items;
+} da;
 
+
+void da_append(da* arr, Doc* doc)
+{
+    if (arr->capacity <= arr->size)
+    {
+       arr->items = realloc(arr->items, sizeof(Doc*) * arr->capacity * 1.5); 
+       arr->capacity *= 1.5;
+    }
+
+    arr->items[arr->size] = doc;
+    arr->size++;
+}
+
+
+void da_init(da* arr)
+{
+   arr->capacity = 100;
+   arr->size = 0;
+   arr->items = malloc(sizeof(Doc) * arr->capacity);
+}
+
+
+
+// ------------------------- DA
 int hash(const char* term);
 void append_term(Term_Freq_List** ht, char* term);
 void print_ht(Term_Freq_List** ht);
@@ -33,9 +63,9 @@ int get_freq(Term_Freq_List** ht, const char* term);
 
 void free_doc(Doc* doc);
 int tf(Doc doc, const char* term);
-double idf(Doc **docs_list, int docs_count, const char* term);
+double idf(Doc *docs_list, int docs_count, const char* term);
 
-int index_documents(DIR *dr, Doc** docs, const char* dir_name);
+int index_documents(DIR *dr, da* docs, const char* dir_name);
 
 int main(int argc, char** argv)
 {
@@ -49,19 +79,29 @@ int main(int argc, char** argv)
     const char* dir_name = argv[1];
     DIR* dr = opendir(dir_name);
 
+
     if (dr == NULL)
     {
         fprintf(stderr, "ERROR: could not open folder!\n");
         exit(1);
     }
 
-    Doc* docs[M];
-    size_t docs_len = index_documents(dr, docs, dir_name);
+
+    da docs = {0};
+    da_init(&docs);
+
+    index_documents(dr, &docs, dir_name);
     
     closedir(dr);
-    for (size_t i = 0; i < docs_len; ++i) free_doc(docs[i]);
+    for (size_t i = 0; i < docs.size; ++i)
+    {
+        free_doc(docs.items[i]);
+    }
+
+    free(docs.items);
     return 0;
 }
+
 
 int hash(const char* term)
 {
@@ -109,6 +149,7 @@ void append_term(Term_Freq_List** ht, char* term)
     }
 }
 
+
 void free_ht(Term_Freq_List** ht)
 {
     for (int i = 0; i < M; ++i)
@@ -133,6 +174,7 @@ void free_ht(Term_Freq_List** ht)
     }
 }
 
+
 void print_ht(Term_Freq_List** ht)
 {
     for(int i = 0; i < M; ++i)
@@ -146,6 +188,7 @@ void print_ht(Term_Freq_List** ht)
         }
         printf("\n");
     }
+    printf("\n");
 }
 
 
@@ -154,6 +197,7 @@ void free_doc(Doc* doc)
     free_ht(doc->term_freqs);
     free(doc->term_freqs);
     doc->term_freqs = NULL;
+
     free(doc->doc_name);
     doc->doc_name = NULL;
     free(doc);
@@ -199,27 +243,28 @@ int tf(Doc doc, const char* term)
 }
 
 
-double idf(Doc **docs_list, int docs_count, const char* term)
+double idf(Doc *docs_list, int docs_count, const char* term)
 {
    if (docs_count < 0) return -1;
 
    int nt = 0; 
    for (int i = 0; i < docs_count; ++i)
    {
-        if (search_ht(docs_list[i]->term_freqs, term)) nt += 1;
+        if (search_ht(docs_list[i].term_freqs, term)) nt += 1;
    }
 
    return (double)(docs_count + 1) / (nt + 1);
 }
 
-int index_documents(DIR *dr, Doc** docs, const char* dir_name)
+int index_documents(DIR *dr, da* docs, const char* dir_name)
 {   
-    struct dirent* entry;
     size_t docs_len = 0;
+
+    struct dirent* entry;
     while((entry = readdir(dr)) != NULL)
     {
-        if (entry->d_type == 0x08) {
-            printf("entry: %s\n", entry->d_name);
+        if (entry->d_type == DT_REG) {
+            printf("\nDoc Entry: %s\n", entry->d_name);
 
             Doc *doc = malloc(sizeof(Doc)); 
             doc->term_freqs = malloc(sizeof(Term_Freq_List*) * M);
@@ -240,7 +285,7 @@ int index_documents(DIR *dr, Doc** docs, const char* dir_name)
             strncat(doc_name, entry->d_name, strlen(entry->d_name));
             
             doc->doc_name = doc_name;
-            printf("INFO: Successfully initialized doc: %s\n", doc->doc_name);
+            printf("[INFO]: Successfully initialized doc: %s\n", doc->doc_name);
 
             FILE *f = fopen(doc_name, "rb");
             if (f == NULL) {
@@ -260,7 +305,7 @@ int index_documents(DIR *dr, Doc** docs, const char* dir_name)
             }
             
 
-            printf("INFO: Successfully opened file: %s\n", doc->doc_name);
+            printf("[INFO]: Successfully opened file: %s\n", doc->doc_name);
             while(fgets(buff, f_size, f))
             {
                 char *word = strtok(buff, SPECIAL_CHARS);
@@ -276,18 +321,24 @@ int index_documents(DIR *dr, Doc** docs, const char* dir_name)
             }
             
             fclose(f);
-            
+            printf("[INFO]: Parsed file\n"); 
             free(buff);
             buff = NULL;
 
-            docs[docs_len++] = doc; 
-            for(size_t i = 0; i < docs_len; ++i) 
-            {   
-                printf("docs[%ld]->doc_name %s, terms_count %ld\n", i, docs[i]->doc_name, docs[i]->terms_count);
-                print_ht(docs[i]->term_freqs);
-            }
+            da_append(docs, doc);
+            docs_len++;
+            printf("[INFO]: Added file: %s to docs list \n", doc->doc_name); 
 
         }
     }
+
+    for(size_t i = 0; i < docs_len; ++i) 
+    {   
+        printf("docs[%ld]->doc_name %s, terms_count %ld\n", i, docs->items[i]->doc_name, docs->items[i]->terms_count);
+        print_ht(docs->items[i]->term_freqs);
+    }
     return docs_len;
 }
+
+
+
